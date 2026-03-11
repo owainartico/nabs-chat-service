@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: nabs-chat-service
+    env: node
+    plan: starter
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: NABS_ADMIN_URL
+        value: https://name-a-bright-star.onrender.com
+      - key: NABS_ADMIN_USERNAME
+        value: admin
+      - key: NABS_ADMIN_PASSWORD
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: DISCORD_CHANNEL_ID
+        value: "1480793131405283429"
+      - key: SERVICE_URL
+        value: https://nabs-chat.onrender.com
