@@ -143,7 +143,7 @@
         if (msg.status === 'approved') {
           addMessage('bot', `All sorted! ✅ ${msg.result || 'Your request has been processed.'} Is there anything else I can help you with?`);
         } else {
-          addMessage('bot', "I'm sorry, we're not able to process that request right now. Please email us at hello@nameabrightstar.com and our team will help you out.");
+          addMessage('bot', "I'm sorry, we're not able to process that request right now. Please email us at support@nameabrightstar.com and our team will help you out.");
         }
       }
 

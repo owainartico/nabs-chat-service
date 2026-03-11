@@ -144,7 +144,7 @@ wss.on('connection', (ws) => {
       console.error('Chat error:', err);
       ws.send(JSON.stringify({
         type: 'chat',
-        text: "I'm sorry, I'm having trouble right now. Please try again in a moment or email us at hello@nameabrightstar.com"
+        text: "I'm sorry, I'm having trouble right now. Please try again in a moment or email us at support@nameabrightstar.com"
       }));
     }
   });
