@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NABS Chat — Test Page</title>
+  <style>
+    body {
+      font-family: Georgia, serif;
+      background: #f0eee9;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #1a1a2e;
+      text-align: center;
+      padding: 40px 20px;
+    }
+    h1 { font-size: 2em; margin-bottom: 8px; }
+    p { opacity: 0.7; margin-bottom: 4px; }
+    .hint {
+      margin-top: 32px;
+      background: #fff;
+      border-radius: 12px;
+      padding: 20px 28px;
+      max-width: 420px;
+      text-align: left;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+      font-size: 14px;
+    }
+    .hint h2 { font-size: 1em; margin-bottom: 8px; }
+    .hint li { margin-bottom: 6px; opacity: 0.8; }
+  </style>
+</head>
+<body>
+  <div>⭐</div>
+  <h1>Name a Bright Star</h1>
+  <p>Support chat test page</p>
+  <p style="opacity:0.4; font-size:13px;">Click the ⭐ button in the bottom-right corner to start chatting</p>
+
+  <div class="hint">
+    <h2>🧪 Test scenarios:</h2>
+    <ul>
+      <li>"I lost my certificate link"</li>
+      <li>"My code doesn't work"</li>
+      <li>"I made a spelling mistake in my registration"</li>
+      <li>"Is this star real?"</li>
+      <li>"How do I find my star in the sky?"</li>
+    </ul>
+  </div>
+
+  <script>
+    window.NABS_CHAT_URL = 'wss://nabs-chat-service.onrender.com';
+  </script>
+  <script src="/widget.js"></script>
+</body>
+</html>
