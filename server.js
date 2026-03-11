@@ -7,6 +7,7 @@ const db = require('./lib/db');
 const discord = require('./lib/discord');
 const approvals = require('./lib/approvals');
 const { sendNewCode, sendSpellingFixConfirmation } = require('./lib/email');
+const emailMonitor = require('./lib/email-monitor');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,6 +18,82 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Health check ─────────────────────────────────────────────────
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
+
+// ── Email reply form ──────────────────────────────────────────────
+app.get('/email-reply', (req, res) => {
+  const { id, token } = req.query;
+  const pending = emailMonitor.getPendingReply(id);
+
+  if (!pending || pending.token !== token) {
+    return res.status(404).send(page('Not Found', '<p>Reply not found or already sent.</p>'));
+  }
+
+  const { email, draft } = pending;
+  res.send(`<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Reply — Name a Bright Star</title>
+  <style>
+    body { font-family: Georgia, serif; max-width: 700px; margin: 40px auto; padding: 20px; color: #1a1a2e; }
+    h1 { font-size: 1.4em; }
+    .meta { background: #f8f7f5; border-radius: 8px; padding: 16px; margin: 16px 0; font-size: 14px; line-height: 1.8; }
+    .original { background: #f0eee9; border-left: 3px solid #c8a84b; padding: 12px 16px; margin: 16px 0; font-size: 13px; white-space: pre-wrap; max-height: 200px; overflow-y: auto; }
+    textarea { width: 100%; height: 220px; font-family: Georgia, serif; font-size: 14px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; line-height: 1.6; }
+    button { background: #1a1a2e; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 12px; }
+    button:hover { background: #16213e; }
+    .sent { color: green; font-weight: bold; padding: 20px; text-align: center; }
+  </style>
+</head>
+<body>
+  <h1>⭐ Reply to Email</h1>
+  <div class="meta">
+    <strong>To:</strong> ${email.fromEmail}<br>
+    <strong>From:</strong> ${email.to}<br>
+    <strong>Subject:</strong> Re: ${email.subject}
+  </div>
+  <p style="font-size:13px; color:#666;">Original email:</p>
+  <div class="original">${email.body.replace(/</g, '&lt;')}</div>
+  <p style="font-size:13px; color:#666; margin-top:20px;">Your reply:</p>
+  <form method="POST" action="/email-reply">
+    <input type="hidden" name="id" value="${id}">
+    <input type="hidden" name="token" value="${token}">
+    <textarea name="body">${draft.replace(/</g, '&lt;')}</textarea>
+    <br>
+    <button type="submit">Send Reply ✉️</button>
+  </form>
+</body>
+</html>`);
+});
+
+app.use(express.urlencoded({ extended: true }));
+
+app.post('/email-reply', async (req, res) => {
+  const { id, token, body: replyBody } = req.body;
+  const pending = emailMonitor.getPendingReply(id);
+
+  if (!pending || pending.token !== token) {
+    return res.status(404).send(page('Not Found', '<p>Reply not found or already sent.</p>'));
+  }
+
+  const { email } = pending;
+  const { sendRawEmail } = require('./lib/email');
+
+  try {
+    await sendRawEmail({
+      from: email.to,
+      to: email.fromEmail,
+      subject: `Re: ${email.subject}`,
+      body: replyBody,
+    });
+
+    emailMonitor.deletePendingReply(id);
+    res.send(page('Reply Sent ✅', `<p>Your reply to <strong>${email.fromEmail}</strong> has been sent.</p><p>You can close this tab.</p>`));
+  } catch (err) {
+    res.status(500).send(page('Error', `<p>Failed to send: ${err.message}</p>`));
+  }
+});
 
 // ── Approval handler (Owain clicks link from Discord) ─────────────
 app.get('/approve', async (req, res) => {
@@ -224,4 +301,5 @@ function page(title, body) {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`NABS Chat Service running on port ${PORT}`);
+  emailMonitor.startMonitor();
 });
