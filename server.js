@@ -6,6 +6,7 @@ const { chat } = require('./lib/ai');
 const db = require('./lib/db');
 const discord = require('./lib/discord');
 const approvals = require('./lib/approvals');
+const { sendNewCode, sendSpellingFixConfirmation } = require('./lib/email');
 
 const app = express();
 const server = http.createServer(app);
@@ -70,23 +71,24 @@ async function executeApproval(approval) {
   switch (approval.type) {
     case 'new_code': {
       const code = await db.generateCode();
-      return `New code generated: ${code}`;
+      await sendNewCode(approval.email, code).catch(e => console.error('Email failed:', e));
+      return `New code sent to ${approval.email}`;
     }
     case 'fix_spelling': {
       if (!approval.registration_id) return 'No registration ID — manual fix required';
-      // Parse new value from details: "Change X to Y"
       const match = approval.details.match(/to[:\s]+(.+)$/i);
       if (match) {
-        await db.updateRegistration(approval.registration_id, {
-          registrant_name: match[1].trim()
-        });
-        return `Registration updated`;
+        const newName = match[1].trim();
+        await db.updateRegistration(approval.registration_id, { registrant_name: newName });
+        await sendSpellingFixConfirmation(approval.email, newName).catch(e => console.error('Email failed:', e));
+        return `Registration updated and confirmation sent to ${approval.email}`;
       }
       return 'Manual fix required — could not parse new value';
     }
     case 'reselect_star': {
       const code = await db.generateCode();
-      return `New code issued for re-selection: ${code}`;
+      await sendNewCode(approval.email, code).catch(e => console.error('Email failed:', e));
+      return `New code for re-selection sent to ${approval.email}`;
     }
     default:
       return 'Action executed';
