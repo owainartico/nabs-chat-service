@@ -51,6 +51,7 @@
       flex: 1; overflow-y: auto; padding: 16px 14px;
       display: flex; flex-direction: column; gap: 10px;
       scrollbar-width: thin; scrollbar-color: #c8a84b33 transparent;
+      user-select: text; -webkit-user-select: text;
     }
     #nabs-chat-messages::-webkit-scrollbar { width: 4px; }
     #nabs-chat-messages::-webkit-scrollbar-thumb { background: #c8a84b44; border-radius: 4px; }
@@ -178,10 +179,25 @@
   }
 
   // ── Messages ─────────────────────────────────────────────────────
+  function escapeHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function linkify(text) {
+    // Convert URLs to clickable links
+    return escapeHtml(text).replace(
+      /(https?:\/\/[^\s<>"]+)/g,
+      '<a href="$1" target="_blank" rel="noopener" style="color:#c8a84b;word-break:break-all;">$1</a>'
+    );
+  }
+
   function addMessage(text, who) {
     var div = document.createElement('div');
     div.className = 'nabs-msg ' + (who === 'user' ? 'nabs-msg-user' : 'nabs-msg-bot');
-    div.textContent = text;
+    div.style.userSelect = 'text';
+    div.style.webkitUserSelect = 'text';
+    // Bot messages: linkify URLs. User messages: plain escaped text.
+    div.innerHTML = who === 'bot' ? linkify(text) : escapeHtml(text);
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
