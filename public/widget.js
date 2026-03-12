@@ -1,226 +1,248 @@
 (function () {
-  const CHAT_URL = window.NABS_CHAT_URL || 'wss://nabs-chat.onrender.com';
+  'use strict';
+  if (window.__nabsChatLoaded) return;
+  window.__nabsChatLoaded = true;
+
+  var WS_URL = 'wss://nabs-chat-service.onrender.com';
 
   // ── Styles ──────────────────────────────────────────────────────
-  const style = document.createElement('style');
-  style.textContent = `
+  var css = `
     #nabs-chat-btn {
-      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
-      width: 60px; height: 60px; border-radius: 50%;
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-      color: #fff; font-size: 26px; border: none; cursor: pointer;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
-      display: flex; align-items: center; justify-content: center;
+      position: fixed; bottom: 24px; right: 24px; z-index: 999998;
+      width: 58px; height: 58px; border-radius: 50%;
+      background: #080818; border: 2px solid #c8a84b;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+      font-size: 26px; box-shadow: 0 0 16px rgba(200,168,75,0.4);
+      animation: nabsPulse 3s ease-in-out infinite;
       transition: transform 0.2s;
     }
-    #nabs-chat-btn:hover { transform: scale(1.1); }
-
+    #nabs-chat-btn:hover { transform: scale(1.08); }
+    @keyframes nabsPulse {
+      0%, 100% { box-shadow: 0 0 12px rgba(200,168,75,0.35); }
+      50%       { box-shadow: 0 0 24px rgba(200,168,75,0.65); }
+    }
     #nabs-chat-panel {
-      position: fixed; bottom: 96px; right: 24px; z-index: 9999;
-      width: 360px; height: 520px;
-      background: #fff; border-radius: 16px;
-      box-shadow: 0 8px 40px rgba(0,0,0,0.2);
-      display: none; flex-direction: column; overflow: hidden;
-      font-family: Georgia, serif;
+      position: fixed; bottom: 96px; right: 24px; z-index: 999999;
+      width: 360px; height: 500px;
+      background: #080818; border: 1px solid #c8a84b33;
+      border-radius: 16px; display: flex; flex-direction: column;
+      box-shadow: 0 8px 40px rgba(0,0,0,0.7);
+      font-family: system-ui, -apple-system, sans-serif;
+      overflow: hidden; opacity: 0; transform: translateY(12px) scale(0.97);
+      pointer-events: none; transition: opacity 0.2s, transform 0.2s;
     }
-    #nabs-chat-panel.open { display: flex; }
-
+    #nabs-chat-panel.nabs-open {
+      opacity: 1; transform: translateY(0) scale(1); pointer-events: all;
+    }
     #nabs-chat-header {
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-      color: #fff; padding: 16px 20px;
-      display: flex; align-items: center; gap: 12px;
+      background: linear-gradient(135deg, #0d0d2b 0%, #1a1a3e 100%);
+      border-bottom: 1px solid #c8a84b44;
+      padding: 14px 16px; display: flex; align-items: center; justify-content: space-between;
     }
-    #nabs-chat-header .star { font-size: 24px; }
-    #nabs-chat-header .title { flex: 1; }
-    #nabs-chat-header .title strong { display: block; font-size: 15px; }
-    #nabs-chat-header .title span { font-size: 12px; opacity: 0.7; }
-    #nabs-chat-close { background: none; border: none; color: #fff;
-      font-size: 20px; cursor: pointer; opacity: 0.7; padding: 0; }
-    #nabs-chat-close:hover { opacity: 1; }
-
+    #nabs-chat-header span {
+      color: #c8a84b; font-size: 15px; font-weight: 600; letter-spacing: 0.5px;
+    }
+    #nabs-close-btn {
+      background: none; border: none; color: #c8a84b88; font-size: 20px;
+      cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    #nabs-close-btn:hover { color: #c8a84b; }
     #nabs-chat-messages {
-      flex: 1; overflow-y: auto; padding: 16px;
-      display: flex; flex-direction: column; gap: 12px;
-      background: #f8f7f5;
+      flex: 1; overflow-y: auto; padding: 16px 14px;
+      display: flex; flex-direction: column; gap: 10px;
+      scrollbar-width: thin; scrollbar-color: #c8a84b33 transparent;
     }
-
+    #nabs-chat-messages::-webkit-scrollbar { width: 4px; }
+    #nabs-chat-messages::-webkit-scrollbar-thumb { background: #c8a84b44; border-radius: 4px; }
     .nabs-msg {
-      max-width: 85%; padding: 10px 14px; border-radius: 12px;
+      max-width: 82%; padding: 10px 13px; border-radius: 12px;
       font-size: 14px; line-height: 1.5; word-break: break-word;
     }
-    .nabs-msg.bot {
-      background: #fff; color: #1a1a2e;
-      border-bottom-left-radius: 4px;
-      box-shadow: 0 1px 4px rgba(0,0,0,0.08);
-      align-self: flex-start;
+    .nabs-msg-bot {
+      background: #111128; color: #e8e8f0; border-bottom-left-radius: 4px; align-self: flex-start;
     }
-    .nabs-msg.user {
-      background: linear-gradient(135deg, #1a1a2e, #16213e);
-      color: #fff; border-bottom-right-radius: 4px;
-      align-self: flex-end;
+    .nabs-msg-user {
+      background: #c8a84b; color: #080818; font-weight: 500;
+      border-bottom-right-radius: 4px; align-self: flex-end;
     }
-    .nabs-msg.typing { opacity: 0.6; font-style: italic; }
-
-    #nabs-chat-input-area {
-      padding: 12px 16px; background: #fff;
-      border-top: 1px solid #eee;
-      display: flex; gap: 8px; align-items: flex-end;
+    .nabs-typing {
+      align-self: flex-start; background: #111128; border-radius: 12px;
+      border-bottom-left-radius: 4px; padding: 10px 14px; display: flex; gap: 5px;
     }
-    #nabs-chat-input {
-      flex: 1; border: 1px solid #ddd; border-radius: 20px;
-      padding: 8px 14px; font-size: 14px; font-family: Georgia, serif;
-      resize: none; outline: none; max-height: 80px; overflow-y: auto;
+    .nabs-dot {
+      width: 7px; height: 7px; border-radius: 50%; background: #c8a84b88;
+      animation: nabsBounce 1.2s ease-in-out infinite;
     }
-    #nabs-chat-input:focus { border-color: #1a1a2e; }
-    #nabs-chat-send {
-      width: 36px; height: 36px; border-radius: 50%;
-      background: #1a1a2e; color: #fff; border: none; cursor: pointer;
-      font-size: 16px; display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
+    .nabs-dot:nth-child(2) { animation-delay: 0.2s; }
+    .nabs-dot:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes nabsBounce {
+      0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+      30% { transform: translateY(-5px); opacity: 1; }
     }
-    #nabs-chat-send:hover { background: #16213e; }
-    #nabs-chat-send:disabled { opacity: 0.4; cursor: default; }
+    #nabs-chat-footer {
+      border-top: 1px solid #c8a84b22; padding: 12px;
+      display: flex; gap: 8px; background: #0a0a1e;
+    }
+    #nabs-input {
+      flex: 1; background: #111128; border: 1px solid #c8a84b33; border-radius: 8px;
+      color: #e8e8f0; font-size: 14px; padding: 9px 12px; outline: none;
+      font-family: inherit; resize: none; height: 38px; line-height: 1.4;
+    }
+    #nabs-input::placeholder { color: #555577; }
+    #nabs-input:focus { border-color: #c8a84b88; }
+    #nabs-send-btn {
+      background: #c8a84b; border: none; border-radius: 8px; color: #080818;
+      font-size: 18px; width: 38px; cursor: pointer; flex-shrink: 0;
+      font-weight: bold; transition: background 0.15s;
+    }
+    #nabs-send-btn:hover { background: #e2c97e; }
+    #nabs-send-btn:disabled { background: #c8a84b55; cursor: default; }
   `;
+
+  // ── DOM ──────────────────────────────────────────────────────────
+  var style = document.createElement('style');
+  style.textContent = css;
   document.head.appendChild(style);
 
-  // ── HTML ─────────────────────────────────────────────────────────
-  const panel = document.createElement('div');
+  var btn = document.createElement('div');
+  btn.id = 'nabs-chat-btn';
+  btn.innerHTML = '✦';
+  btn.title = 'Chat with us';
+  document.body.appendChild(btn);
+
+  var panel = document.createElement('div');
   panel.id = 'nabs-chat-panel';
   panel.innerHTML = `
     <div id="nabs-chat-header">
-      <span class="star">⭐</span>
-      <div class="title">
-        <strong>Name a Bright Star</strong>
-        <span>Support Chat</span>
-      </div>
-      <button id="nabs-chat-close">✕</button>
+      <span>✦ Name a Bright Star</span>
+      <button id="nabs-close-btn" aria-label="Close">×</button>
     </div>
     <div id="nabs-chat-messages"></div>
-    <div id="nabs-chat-input-area">
-      <textarea id="nabs-chat-input" placeholder="Ask us anything..." rows="1"></textarea>
-      <button id="nabs-chat-send">➤</button>
+    <div id="nabs-chat-footer">
+      <input id="nabs-input" type="text" placeholder="Ask about your star…" autocomplete="off" maxlength="500">
+      <button id="nabs-send-btn" aria-label="Send">➤</button>
     </div>
   `;
   document.body.appendChild(panel);
 
-  const btn = document.createElement('button');
-  btn.id = 'nabs-chat-btn';
-  btn.innerHTML = '⭐';
-  btn.title = 'Chat with support';
-  document.body.appendChild(btn);
+  var messagesEl = document.getElementById('nabs-chat-messages');
+  var inputEl = document.getElementById('nabs-input');
+  var sendBtn = document.getElementById('nabs-send-btn');
+  var closeBtn = document.getElementById('nabs-close-btn');
+  var isOpen = false;
+  var ws = null;
+  var connected = false;
+  var pendingTyping = null;
 
-  // ── State ─────────────────────────────────────────────────────────
-  let ws = null;
-  let isOpen = false;
-  let connected = false;
-  let greeted = false;
-
-  const messages = document.getElementById('nabs-chat-messages');
-  const input = document.getElementById('nabs-chat-input');
-  const send = document.getElementById('nabs-chat-send');
-
-  // ── WebSocket ─────────────────────────────────────────────────────
+  // ── WebSocket ────────────────────────────────────────────────────
   function connect() {
-    if (ws && ws.readyState === WebSocket.OPEN) return;
+    if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
+    ws = new WebSocket(WS_URL);
 
-    ws = new WebSocket(CHAT_URL.replace(/^http/, 'ws'));
-
-    ws.onopen = () => {
+    ws.onopen = function () {
       connected = true;
-      if (!greeted) {
-        greeted = true;
-        addMessage('bot', "Hi! 🌟 Welcome to Name a Bright Star support. I can help you with registration, certificates, or any questions about your star. What can I help you with today?");
-      }
+      sendBtn.disabled = false;
     };
 
-    ws.onmessage = (e) => {
-      const msg = JSON.parse(e.data);
+    ws.onmessage = function (evt) {
       removeTyping();
-
-      if (msg.type === 'chat') {
-        addMessage('bot', msg.text);
-      } else if (msg.type === 'approval_result') {
-        if (msg.status === 'approved') {
-          addMessage('bot', `All sorted! ✅ ${msg.result || 'Your request has been processed.'} Is there anything else I can help you with?`);
-        } else {
-          addMessage('bot', "I'm sorry, we're not able to process that request right now. Please email us at support@nameabrightstar.com and our team will help you out.");
+      try {
+        var data = JSON.parse(evt.data);
+        if (data.type === 'message' || data.type === 'response') {
+          addMessage(data.text || data.content || '', 'bot');
+        } else if (data.type === 'approval_result') {
+          if (data.status === 'approved') {
+            addMessage('✅ ' + (data.result || 'Your request has been approved.'), 'bot');
+          } else {
+            addMessage('Your request could not be approved at this time. Please email support@nameabrightstar.com for help.', 'bot');
+          }
+        } else if (data.text || data.content || data.message) {
+          addMessage(data.text || data.content || data.message, 'bot');
+        }
+      } catch (e) {
+        if (typeof evt.data === 'string' && evt.data.trim()) {
+          addMessage(evt.data, 'bot');
         }
       }
-
-      send.disabled = false;
     };
 
-    ws.onclose = () => {
+    ws.onerror = function () {
       connected = false;
-      setTimeout(connect, 3000);
     };
 
-    ws.onerror = () => ws.close();
+    ws.onclose = function () {
+      connected = false;
+      sendBtn.disabled = true;
+      setTimeout(function () { if (isOpen) connect(); }, 3000);
+    };
   }
 
-  // ── UI helpers ────────────────────────────────────────────────────
-  function addMessage(role, text) {
-    const div = document.createElement('div');
-    div.className = `nabs-msg ${role}`;
+  // ── Messages ─────────────────────────────────────────────────────
+  function addMessage(text, who) {
+    var div = document.createElement('div');
+    div.className = 'nabs-msg ' + (who === 'user' ? 'nabs-msg-user' : 'nabs-msg-bot');
     div.textContent = text;
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
-  function addTyping() {
-    if (document.getElementById('nabs-typing')) return;
-    const div = document.createElement('div');
-    div.className = 'nabs-msg bot typing';
-    div.id = 'nabs-typing';
-    div.textContent = '...';
-    messages.appendChild(div);
-    messages.scrollTop = messages.scrollHeight;
+  function showTyping() {
+    if (pendingTyping) return;
+    var div = document.createElement('div');
+    div.className = 'nabs-typing';
+    div.id = 'nabs-typing-indicator';
+    div.innerHTML = '<div class="nabs-dot"></div><div class="nabs-dot"></div><div class="nabs-dot"></div>';
+    messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    pendingTyping = div;
   }
 
   function removeTyping() {
-    const el = document.getElementById('nabs-typing');
-    if (el) el.remove();
+    if (pendingTyping) {
+      pendingTyping.remove();
+      pendingTyping = null;
+    }
   }
 
   function sendMessage() {
-    const text = input.value.trim();
+    var text = inputEl.value.trim();
     if (!text || !connected) return;
-
-    addMessage('user', text);
-    input.value = '';
-    input.style.height = 'auto';
-    send.disabled = true;
-    addTyping();
-
-    ws.send(JSON.stringify({ type: 'chat', text }));
+    addMessage(text, 'user');
+    inputEl.value = '';
+    showTyping();
+    try {
+      ws.send(JSON.stringify({ type: 'message', text: text }));
+    } catch (e) {
+      removeTyping();
+      addMessage('Connection lost. Please refresh and try again.', 'bot');
+    }
   }
 
-  // ── Events ────────────────────────────────────────────────────────
-  btn.addEventListener('click', () => {
-    isOpen = !isOpen;
-    panel.classList.toggle('open', isOpen);
-    btn.innerHTML = isOpen ? '✕' : '⭐';
-    if (isOpen && !connected) connect();
-    if (isOpen) setTimeout(() => input.focus(), 100);
-  });
-
-  document.getElementById('nabs-chat-close').addEventListener('click', () => {
-    isOpen = false;
-    panel.classList.remove('open');
-    btn.innerHTML = '⭐';
-  });
-
-  send.addEventListener('click', sendMessage);
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage();
+  // ── Toggle ───────────────────────────────────────────────────────
+  function openPanel() {
+    isOpen = true;
+    panel.classList.add('nabs-open');
+    connect();
+    if (messagesEl.children.length === 0) {
+      setTimeout(function () {
+        addMessage('Hi! ✦ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
+      }, 300);
     }
+    setTimeout(function () { inputEl.focus(); }, 250);
+  }
+
+  function closePanel() {
+    isOpen = false;
+    panel.classList.remove('nabs-open');
+  }
+
+  btn.addEventListener('click', function () { isOpen ? closePanel() : openPanel(); });
+  closeBtn.addEventListener('click', function (e) { e.stopPropagation(); closePanel(); });
+  sendBtn.addEventListener('click', sendMessage);
+  inputEl.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 
-  input.addEventListener('input', () => {
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, 80) + 'px';
-  });
+  // Initial state: button disabled until WS connects
+  sendBtn.disabled = true;
 })();
