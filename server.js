@@ -43,7 +43,6 @@ app.get('/email-reply', (req, res) => {
     textarea { width: 100%; height: 220px; font-family: Georgia, serif; font-size: 14px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; line-height: 1.6; }
     button { background: #1a1a2e; color: #fff; border: none; padding: 12px 28px; border-radius: 8px; font-size: 14px; cursor: pointer; margin-top: 12px; }
     button:hover { background: #16213e; }
-    .sent { color: green; font-weight: bold; padding: 20px; text-align: center; }
   </style>
 </head>
 <body>
@@ -118,10 +117,8 @@ app.get('/approve', async (req, res) => {
       `<p>This request was already <strong>${approval.status}d</strong>.</p>`));
   }
 
-  // Resolve the approval
   approvals.resolve(id, action);
 
-  // Execute if approved
   let resultMessage = '';
   if (action === 'approve') {
     try {
@@ -132,7 +129,6 @@ app.get('/approve', async (req, res) => {
     }
   }
 
-  // Notify the customer via their WebSocket session
   notifyCustomer(approval.session_id, action, resultMessage);
 
   const actionLabel = action === 'approve' ? '✅ Approved' : '❌ Rejected';
@@ -144,11 +140,26 @@ app.get('/approve', async (req, res) => {
   ));
 });
 
+// ── Resend certificate email via NABS admin API ───────────────────
+async function resendCertificate(registrationId) {
+  const NABS_URL = process.env.NABS_ADMIN_URL || 'https://name-a-bright-star.onrender.com';
+  const auth = Buffer.from(`${process.env.NABS_ADMIN_USERNAME || 'admin'}:${process.env.NABS_ADMIN_PASSWORD}`).toString('base64');
+  const res = await fetch(`${NABS_URL}/api/admin/resend/${registrationId}`, {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${auth}` }
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Resend failed: ${res.status} ${err}`);
+  }
+  return res.json();
+}
+
 async function executeApproval(approval) {
   switch (approval.type) {
     case 'new_code': {
       const code = await db.generateCode();
-      await sendNewCode(approval.email, code).catch(e => console.error('Email failed:', e));
+      await sendNewCode(approval.email, code).catch(e => console.error('sendNewCode failed:', e));
       return `New code sent to ${approval.email}`;
     }
     case 'fix_spelling': {
@@ -157,14 +168,17 @@ async function executeApproval(approval) {
       if (match) {
         const newName = match[1].trim();
         await db.updateRegistration(approval.registration_id, { registrant_name: newName });
-        await sendSpellingFixConfirmation(approval.email, newName).catch(e => console.error('Email failed:', e));
-        return `Registration updated and confirmation sent to ${approval.email}`;
+        // Resend full certificate email so customer gets updated details
+        const resendResult = await resendCertificate(approval.registration_id)
+          .catch(e => { console.error('resendCertificate failed:', e); return null; });
+        console.log('[APPROVAL] Resend result:', JSON.stringify(resendResult));
+        return `Registration updated and certificate email resent to ${approval.email}`;
       }
-      return 'Manual fix required — could not parse new value';
+      return 'Manual fix required — could not parse new name from details';
     }
     case 'reselect_star': {
       const code = await db.generateCode();
-      await sendNewCode(approval.email, code).catch(e => console.error('Email failed:', e));
+      await sendNewCode(approval.email, code).catch(e => console.error('sendNewCode failed:', e));
       return `New code for re-selection sent to ${approval.email}`;
     }
     default:
@@ -174,21 +188,17 @@ async function executeApproval(approval) {
 
 function notifyCustomer(sessionId, action, result) {
   if (!sessionId) return;
-
-  // Find the WebSocket session and send a message
   for (const client of wss.clients) {
     if (client.sessionId === sessionId && client.readyState === WebSocket.OPEN) {
       const msg = action === 'approve'
         ? { type: 'approval_result', status: 'approved', result }
         : { type: 'approval_result', status: 'rejected' };
-
       client.send(JSON.stringify(msg));
     }
   }
 }
 
-
-// ── Test Discord posting (debug) ─────────────────────────────────
+// ── Test Discord posting (debug) ──────────────────────────────────
 app.get('/test-discord', async (req, res) => {
   try {
     await discord.sendApprovalRequest({
@@ -204,7 +214,7 @@ app.get('/test-discord', async (req, res) => {
   }
 });
 
-// ── WebSocket chat ───────────────────────────────────────────────
+// ── WebSocket chat ────────────────────────────────────────────────
 wss.on('connection', (ws) => {
   ws.sessionId = Math.random().toString(36).slice(2);
   ws.history = [];
@@ -223,19 +233,12 @@ wss.on('connection', (ws) => {
     const userMessage = { role: 'user', content: msg.text };
     ws.history.push(userMessage);
 
-    // Keep history bounded
     if (ws.history.length > 30) ws.history = ws.history.slice(-30);
 
     try {
-      const toolHandler = async (name, args) => {
-        return handleTool(ws, name, args);
-      };
-
-      const result = await chat(ws.history, toolHandler);
+      const result = await chat(ws.history, (name, args) => handleTool(ws, name, args));
       ws.history = result.messages;
-
       ws.send(JSON.stringify({ type: 'chat', text: result.content }));
-
     } catch (err) {
       console.error('Chat error:', err);
       ws.send(JSON.stringify({
@@ -255,7 +258,6 @@ async function handleTool(ws, name, args) {
         return { found: false, error: err.message };
       }
     }
-
     case 'validate_code': {
       try {
         return await db.validateCode(args.code);
@@ -263,41 +265,27 @@ async function handleTool(ws, name, args) {
         return { valid: false, error: err.message };
       }
     }
-
     case 'request_approval': {
-      console.log('[APPROVAL] Creating approval request for', args.email, 'type:', args.type);
-      const approval = approvals.create(
-        args.type,
-        args.email,
-        args.details,
-        args.registration_id || null
-      );
+      console.log('[APPROVAL] Creating for', args.email, 'type:', args.type);
+      const approval = approvals.create(args.type, args.email, args.details, args.registration_id || null);
       approvals.linkSession(approval.id, ws.sessionId);
       ws.pendingApprovalId = approval.id;
 
       try {
-        console.log('[APPROVAL] Posting to Discord, channel:', process.env.DISCORD_CHANNEL_ID);
+        console.log('[APPROVAL] Posting to Discord channel:', process.env.DISCORD_CHANNEL_ID);
         await discord.sendApprovalRequest(approval);
         console.log('[APPROVAL] Discord post successful');
-        return {
-          requested: true,
-          message: 'Approval request sent to operator'
-        };
+        return { requested: true, message: 'Approval request sent to operator' };
       } catch (err) {
-        console.error('[APPROVAL] Discord notification failed:', err.message, err.stack);
-        return {
-          requested: true,
-          message: 'Approval request queued (notification failed)'
-        };
+        console.error('[APPROVAL] Discord failed:', err.message);
+        return { requested: true, message: 'Approval request queued (notification failed)' };
       }
     }
-
     default:
       return { error: `Unknown tool: ${name}` };
   }
 }
 
-// Helper: minimal HTML page for approval responses
 function page(title, body) {
   return `<!DOCTYPE html>
 <html>
@@ -310,7 +298,7 @@ function page(title, body) {
   </style>
 </head>
 <body>
-  <h1>⭐ Name a Bright Star</h1>
+  <h1>✦ Name a Bright Star</h1>
   <h2>${title}</h2>
   ${body}
 </body>
