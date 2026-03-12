@@ -148,7 +148,7 @@
       removeTyping();
       try {
         var data = JSON.parse(evt.data);
-        if (data.type === 'message' || data.type === 'response') {
+        if (data.type === 'chat' || data.type === 'message' || data.type === 'response') {
           addMessage(data.text || data.content || '', 'bot');
         } else if (data.type === 'approval_result') {
           if (data.status === 'approved') {
@@ -211,7 +211,7 @@
     inputEl.value = '';
     showTyping();
     try {
-      ws.send(JSON.stringify({ type: 'message', text: text }));
+      ws.send(JSON.stringify({ type: 'chat', text: text }));
     } catch (e) {
       removeTyping();
       addMessage('Connection lost. Please refresh and try again.', 'bot');
