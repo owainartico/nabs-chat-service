@@ -187,6 +187,23 @@ function notifyCustomer(sessionId, action, result) {
   }
 }
 
+
+// ── Test Discord posting (debug) ─────────────────────────────────
+app.get('/test-discord', async (req, res) => {
+  try {
+    await discord.sendApprovalRequest({
+      id: 'test-' + Date.now(),
+      token: 'testtoken',
+      type: 'new_code',
+      email: 'test@example.com',
+      details: 'Test approval from Render debug endpoint'
+    });
+    res.json({ ok: true, message: 'Discord message sent successfully' });
+  } catch (err) {
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // ── WebSocket chat ───────────────────────────────────────────────
 wss.on('connection', (ws) => {
   ws.sessionId = Math.random().toString(36).slice(2);
@@ -248,6 +265,7 @@ async function handleTool(ws, name, args) {
     }
 
     case 'request_approval': {
+      console.log('[APPROVAL] Creating approval request for', args.email, 'type:', args.type);
       const approval = approvals.create(
         args.type,
         args.email,
@@ -258,13 +276,15 @@ async function handleTool(ws, name, args) {
       ws.pendingApprovalId = approval.id;
 
       try {
+        console.log('[APPROVAL] Posting to Discord, channel:', process.env.DISCORD_CHANNEL_ID);
         await discord.sendApprovalRequest(approval);
+        console.log('[APPROVAL] Discord post successful');
         return {
           requested: true,
           message: 'Approval request sent to operator'
         };
       } catch (err) {
-        console.error('Discord notification failed:', err);
+        console.error('[APPROVAL] Discord notification failed:', err.message, err.stack);
         return {
           requested: true,
           message: 'Approval request queued (notification failed)'
