@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
@@ -267,6 +267,22 @@ async function handleTool(ws, name, args) {
     }
     case 'request_approval': {
       console.log('[APPROVAL] Creating for', args.email, 'type:', args.type);
+
+      // Auto-approve new_code requests until 2026-04-15 (policy set 2026-03-15)
+      const AUTO_CODE_EXPIRY = new Date('2026-04-15T00:00:00.000Z');
+      if (args.type === 'new_code' && new Date() < AUTO_CODE_EXPIRY) {
+        console.log('[APPROVAL] Auto-sending new code to', args.email);
+        try {
+          const code = await db.generateCode();
+          await sendNewCode(args.email, code).catch(e => console.error('sendNewCode failed:', e));
+          console.log('[APPROVAL] Auto new_code sent:', code, 'to', args.email);
+          return { approved: true, auto: true, message: `New code sent! Tell the customer: their new code is on its way to ${args.email} — they should have it within a minute.` };
+        } catch (err) {
+          console.error('[APPROVAL] Auto new_code failed:', err.message);
+          // Fall through to normal approval flow on error
+        }
+      }
+
       const approval = approvals.create(args.type, args.email, args.details, args.registration_id || null);
       approvals.linkSession(approval.id, ws.sessionId);
       ws.pendingApprovalId = approval.id;
