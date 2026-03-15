@@ -121,11 +121,11 @@
 
   var label = document.createElement('div');
   label.id = 'nabs-chat-label';
-  label.textContent = 'ðŸ’¬ Live Chat';
+  label.textContent = '💬 Live Chat';
 
   var btn = document.createElement('div');
   btn.id = 'nabs-chat-btn';
-  btn.innerHTML = 'âœ¦';
+  btn.innerHTML = '✨';
   btn.title = 'Chat with us';
 
   wrapper.appendChild(label);
@@ -136,13 +136,13 @@
   panel.id = 'nabs-chat-panel';
   panel.innerHTML = `
     <div id="nabs-chat-header">
-      <span>âœ¦ Name a Bright Star</span>
-      <button id="nabs-close-btn" aria-label="Close">Ã—</button>
+      <span>✨ Name a Bright Star</span>
+      <button id="nabs-close-btn" aria-label="Close">×</button>
     </div>
     <div id="nabs-chat-messages"></div>
     <div id="nabs-chat-footer">
-      <input id="nabs-input" type="text" placeholder="Ask about your starâ€¦" autocomplete="off" maxlength="500">
-      <button id="nabs-send-btn" aria-label="Send">âž¤</button>
+      <input id="nabs-input" type="text" placeholder="Ask about your star…" autocomplete="off" maxlength="500">
+      <button id="nabs-send-btn" aria-label="Send">➤</button>
     </div>
   `;
   document.body.appendChild(panel);
@@ -262,7 +262,7 @@
     connect();
     if (messagesEl.children.length === 0) {
       setTimeout(function () {
-        addMessage('Hi! âœ¦ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
+        addMessage('Hi! ✨ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
       }, 300);
     }
     setTimeout(function () { inputEl.focus(); }, 250);
