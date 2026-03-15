@@ -5,10 +5,21 @@
 
   var WS_URL = 'wss://nabs-chat-service.onrender.com';
 
-  // ── Styles ──────────────────────────────────────────────────────
+  // â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var css = `
-    #nabs-chat-btn {
+    #nabs-chat-wrapper {
       position: fixed; bottom: 24px; right: 24px; z-index: 999998;
+      display: flex; flex-direction: column; align-items: center; gap: 6px;
+    }
+    #nabs-chat-label {
+      background: #c8a84b; color: #080818;
+      font-size: 12px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase;
+      padding: 4px 12px; border-radius: 20px; white-space: nowrap;
+      font-family: system-ui, -apple-system, sans-serif;
+      box-shadow: 0 2px 8px rgba(200,168,75,0.4);
+      pointer-events: none;
+    }
+    #nabs-chat-btn {
       width: 58px; height: 58px; border-radius: 50%;
       background: #080818; border: 2px solid #c8a84b;
       cursor: pointer; display: flex; align-items: center; justify-content: center;
@@ -100,28 +111,38 @@
     #nabs-send-btn:disabled { background: #c8a84b55; cursor: default; }
   `;
 
-  // ── DOM ──────────────────────────────────────────────────────────
+  // â”€â”€ DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
 
+  var wrapper = document.createElement('div');
+  wrapper.id = 'nabs-chat-wrapper';
+
+  var label = document.createElement('div');
+  label.id = 'nabs-chat-label';
+  label.textContent = 'ðŸ’¬ Live Chat';
+
   var btn = document.createElement('div');
   btn.id = 'nabs-chat-btn';
-  btn.innerHTML = '✦';
+  btn.innerHTML = 'âœ¦';
   btn.title = 'Chat with us';
-  document.body.appendChild(btn);
+
+  wrapper.appendChild(label);
+  wrapper.appendChild(btn);
+  document.body.appendChild(wrapper);
 
   var panel = document.createElement('div');
   panel.id = 'nabs-chat-panel';
   panel.innerHTML = `
     <div id="nabs-chat-header">
-      <span>✦ Name a Bright Star</span>
-      <button id="nabs-close-btn" aria-label="Close">×</button>
+      <span>âœ¦ Name a Bright Star</span>
+      <button id="nabs-close-btn" aria-label="Close">Ã—</button>
     </div>
     <div id="nabs-chat-messages"></div>
     <div id="nabs-chat-footer">
-      <input id="nabs-input" type="text" placeholder="Ask about your star…" autocomplete="off" maxlength="500">
-      <button id="nabs-send-btn" aria-label="Send">➤</button>
+      <input id="nabs-input" type="text" placeholder="Ask about your starâ€¦" autocomplete="off" maxlength="500">
+      <button id="nabs-send-btn" aria-label="Send">âž¤</button>
     </div>
   `;
   document.body.appendChild(panel);
@@ -135,7 +156,7 @@
   var connected = false;
   var pendingTyping = null;
 
-  // ── WebSocket ────────────────────────────────────────────────────
+  // â”€â”€ WebSocket â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function connect() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
     ws = new WebSocket(WS_URL);
@@ -153,7 +174,7 @@
           addMessage(data.text || data.content || '', 'bot');
         } else if (data.type === 'approval_result') {
           if (data.status === 'approved') {
-            addMessage('✅ ' + (data.result || 'Your request has been approved.'), 'bot');
+            addMessage('âœ… ' + (data.result || 'Your request has been approved.'), 'bot');
           } else {
             addMessage('Your request could not be approved at this time. Please email support@nameabrightstar.com for help.', 'bot');
           }
@@ -178,7 +199,7 @@
     };
   }
 
-  // ── Messages ─────────────────────────────────────────────────────
+  // â”€â”€ Messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function escapeHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -234,14 +255,14 @@
     }
   }
 
-  // ── Toggle ───────────────────────────────────────────────────────
+  // â”€â”€ Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   function openPanel() {
     isOpen = true;
     panel.classList.add('nabs-open');
     connect();
     if (messagesEl.children.length === 0) {
       setTimeout(function () {
-        addMessage('Hi! ✦ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
+        addMessage('Hi! âœ¦ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
       }, 300);
     }
     setTimeout(function () { inputEl.focus(); }, 250);
