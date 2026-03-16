@@ -3,7 +3,7 @@
   if (window.__nabsChatLoaded) return;
   window.__nabsChatLoaded = true;
 
-  var WS_URL = 'wss://nabs-chat-service.onrender.com';
+  var WS_URL = 'wss://chat.nameabrightstar.com';
 
   // â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   var css = `
