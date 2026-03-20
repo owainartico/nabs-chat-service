@@ -5,7 +5,7 @@
 
   var WS_URL = 'wss://chat.nameabrightstar.com';
 
-  // â”€â”€ Styles â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â•â•â• Styles â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   var css = `
     #nabs-chat-wrapper {
       position: fixed; bottom: 24px; right: 24px; z-index: 999998;
@@ -34,7 +34,7 @@
     }
     #nabs-chat-panel {
       position: fixed; bottom: 96px; right: 24px; z-index: 999999;
-      width: 360px; height: 500px;
+      width: 360px; height: 520px;
       background: #080818; border: 1px solid #c8a84b33;
       border-radius: 16px; display: flex; flex-direction: column;
       box-shadow: 0 8px 40px rgba(0,0,0,0.7);
@@ -77,6 +77,24 @@
       background: #c8a84b; color: #080818; font-weight: 500;
       border-bottom-right-radius: 4px; align-self: flex-end;
     }
+    .nabs-msg-img-wrap {
+      max-width: 82%; align-self: flex-end; cursor: pointer;
+    }
+    .nabs-msg-img {
+      max-width: 100%; max-height: 200px; border-radius: 10px;
+      display: block; object-fit: contain;
+      border: 1px solid #c8a84b44;
+    }
+    .nabs-msg-file {
+      max-width: 82%; align-self: flex-end;
+      background: #c8a84b22; border: 1px solid #c8a84b44;
+      border-radius: 10px; border-bottom-right-radius: 4px;
+      padding: 9px 13px; display: flex; align-items: center; gap: 8px;
+      color: #c8a84b; font-size: 13px; text-decoration: none;
+    }
+    .nabs-msg-file:hover { background: #c8a84b33; }
+    .nabs-msg-file-icon { font-size: 20px; flex-shrink: 0; }
+    .nabs-msg-file-name { word-break: break-all; font-size: 12px; color: #e8e8f0; }
     .nabs-typing {
       align-self: flex-start; background: #111128; border-radius: 12px;
       border-bottom-left-radius: 4px; padding: 10px 14px; display: flex; gap: 5px;
@@ -92,9 +110,16 @@
       30% { transform: translateY(-5px); opacity: 1; }
     }
     #nabs-chat-footer {
-      border-top: 1px solid #c8a84b22; padding: 12px;
-      display: flex; gap: 8px; background: #0a0a1e;
+      border-top: 1px solid #c8a84b22; padding: 10px 12px;
+      display: flex; gap: 8px; align-items: flex-end; background: #0a0a1e;
     }
+    #nabs-attach-btn {
+      background: none; border: 1px solid #c8a84b33; border-radius: 8px;
+      color: #c8a84b77; font-size: 18px; width: 38px; height: 38px;
+      cursor: pointer; flex-shrink: 0; transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #nabs-attach-btn:hover { color: #c8a84b; border-color: #c8a84b88; background: #c8a84b11; }
     #nabs-input {
       flex: 1; background: #111128; border: 1px solid #c8a84b33; border-radius: 8px;
       color: #e8e8f0; font-size: 14px; padding: 9px 12px; outline: none;
@@ -104,14 +129,27 @@
     #nabs-input:focus { border-color: #c8a84b88; }
     #nabs-send-btn {
       background: #c8a84b; border: none; border-radius: 8px; color: #080818;
-      font-size: 18px; width: 38px; cursor: pointer; flex-shrink: 0;
+      font-size: 18px; width: 38px; height: 38px; cursor: pointer; flex-shrink: 0;
       font-weight: bold; transition: background 0.15s;
+      display: flex; align-items: center; justify-content: center;
     }
     #nabs-send-btn:hover { background: #e2c97e; }
     #nabs-send-btn:disabled { background: #c8a84b55; cursor: default; }
+    .nabs-upload-status {
+      align-self: flex-end; font-size: 12px; color: #c8a84b88; font-style: italic;
+      padding: 4px 8px; animation: nabsFadeIn 0.2s ease;
+    }
+    @keyframes nabsFadeIn { from { opacity: 0; } to { opacity: 1; } }
+    /* Lightbox */
+    #nabs-lightbox {
+      position: fixed; inset: 0; z-index: 9999999;
+      background: rgba(0,0,0,0.9); display: flex; align-items: center; justify-content: center;
+      cursor: zoom-out;
+    }
+    #nabs-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; }
   `;
 
-  // â”€â”€ DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â•â•â• DOM â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   var style = document.createElement('style');
   style.textContent = css;
   document.head.appendChild(style);
@@ -121,11 +159,11 @@
 
   var label = document.createElement('div');
   label.id = 'nabs-chat-label';
-  label.textContent = '💬 Live Chat';
+  label.textContent = 'âœ¦ Live Chat';
 
   var btn = document.createElement('div');
   btn.id = 'nabs-chat-btn';
-  btn.innerHTML = '✨';
+  btn.innerHTML = 'âœ¦';
   btn.title = 'Chat with us';
 
   wrapper.appendChild(label);
@@ -136,13 +174,15 @@
   panel.id = 'nabs-chat-panel';
   panel.innerHTML = `
     <div id="nabs-chat-header">
-      <span>✨ Name a Bright Star</span>
-      <button id="nabs-close-btn" aria-label="Close">×</button>
+      <span>âœ¦ Name a Bright Star</span>
+      <button id="nabs-close-btn" aria-label="Close">âœ•</button>
     </div>
     <div id="nabs-chat-messages"></div>
     <div id="nabs-chat-footer">
-      <input id="nabs-input" type="text" placeholder="Ask about your star…" autocomplete="off" maxlength="500">
-      <button id="nabs-send-btn" aria-label="Send">➤</button>
+      <button id="nabs-attach-btn" title="Attach image or file">ðŸ“Ž</button>
+      <input type="file" id="nabs-file-input" accept="image/*,.pdf" style="display:none">
+      <input id="nabs-input" type="text" placeholder="Ask about your starâ€¦" autocomplete="off" maxlength="500">
+      <button id="nabs-send-btn" aria-label="Send">âž¤</button>
     </div>
   `;
   document.body.appendChild(panel);
@@ -151,12 +191,14 @@
   var inputEl = document.getElementById('nabs-input');
   var sendBtn = document.getElementById('nabs-send-btn');
   var closeBtn = document.getElementById('nabs-close-btn');
+  var attachBtn = document.getElementById('nabs-attach-btn');
+  var fileInput = document.getElementById('nabs-file-input');
   var isOpen = false;
   var ws = null;
   var connected = false;
   var pendingTyping = null;
 
-  // â”€â”€ WebSocket â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â•â•â• WebSocket â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   function connect() {
     if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
     ws = new WebSocket(WS_URL);
@@ -174,7 +216,7 @@
           addMessage(data.text || data.content || '', 'bot');
         } else if (data.type === 'approval_result') {
           if (data.status === 'approved') {
-            addMessage('âœ… ' + (data.result || 'Your request has been approved.'), 'bot');
+            addMessage('âœ“ ' + (data.result || 'Your request has been approved.'), 'bot');
           } else {
             addMessage('Your request could not be approved at this time. Please email support@nameabrightstar.com for help.', 'bot');
           }
@@ -188,10 +230,7 @@
       }
     };
 
-    ws.onerror = function () {
-      connected = false;
-    };
-
+    ws.onerror = function () { connected = false; };
     ws.onclose = function () {
       connected = false;
       sendBtn.disabled = true;
@@ -199,13 +238,12 @@
     };
   }
 
-  // â”€â”€ Messages â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â•â•â• Messages â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   function escapeHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
 
   function linkify(text) {
-    // Convert URLs to clickable links
     return escapeHtml(text).replace(
       /(https?:\/\/[^\s<>"]+)/g,
       '<a href="$1" target="_blank" rel="noopener" style="color:#c8a84b;word-break:break-all;">$1</a>'
@@ -217,9 +255,33 @@
     div.className = 'nabs-msg ' + (who === 'user' ? 'nabs-msg-user' : 'nabs-msg-bot');
     div.style.userSelect = 'text';
     div.style.webkitUserSelect = 'text';
-    // Bot messages: linkify URLs. User messages: plain escaped text.
     div.innerHTML = who === 'bot' ? linkify(text) : escapeHtml(text);
     messagesEl.appendChild(div);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addImageMessage(url, filename) {
+    var wrap = document.createElement('div');
+    wrap.className = 'nabs-msg-img-wrap';
+    var img = document.createElement('img');
+    img.src = url;
+    img.alt = filename || 'uploaded image';
+    img.className = 'nabs-msg-img';
+    img.title = 'Click to view full size';
+    img.addEventListener('click', function () { openLightbox(url); });
+    wrap.appendChild(img);
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addFileMessage(url, filename) {
+    var a = document.createElement('a');
+    a.className = 'nabs-msg-file';
+    a.href = url;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    a.innerHTML = '<span class="nabs-msg-file-icon">ðŸ“„</span><span class="nabs-msg-file-name">' + escapeHtml(filename || 'Attachment') + '</span>';
+    messagesEl.appendChild(a);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
 
@@ -235,10 +297,7 @@
   }
 
   function removeTyping() {
-    if (pendingTyping) {
-      pendingTyping.remove();
-      pendingTyping = null;
-    }
+    if (pendingTyping) { pendingTyping.remove(); pendingTyping = null; }
   }
 
   function sendMessage() {
@@ -255,14 +314,106 @@
     }
   }
 
-  // â”€â”€ Toggle â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+  // â•â•â• File upload â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  var ALLOWED_TYPES = ['image/jpeg','image/png','image/gif','image/webp','image/heic','application/pdf'];
+  var MAX_SIZE = 10 * 1024 * 1024; // 10MB
+
+  attachBtn.addEventListener('click', function () { fileInput.click(); });
+
+  fileInput.addEventListener('change', function () {
+    var file = this.files[0];
+    if (!file) return;
+    this.value = '';
+
+    if (!ALLOWED_TYPES.includes(file.type) && !file.type.startsWith('image/')) {
+      addMessage('Sorry, only images and PDFs are supported. Please try a different file.', 'bot');
+      return;
+    }
+    if (file.size > MAX_SIZE) {
+      addMessage('That file is too large (max 10MB). Try compressing it first.', 'bot');
+      return;
+    }
+
+    uploadFile(file);
+  });
+
+  function uploadFile(file) {
+    var statusEl = document.createElement('div');
+    statusEl.className = 'nabs-upload-status';
+    statusEl.textContent = 'Uploadingâ€¦';
+    messagesEl.appendChild(statusEl);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+
+    var formData = new FormData();
+    formData.append('file', file);
+
+    var xhr = new XMLHttpRequest();
+    var uploadUrl = window.location.protocol + '//' + window.location.host + '/upload';
+    // If running from CDN/widget.js loaded on external site, point back to chat service
+    if (!window.NABS_CHAT_UPLOAD_URL && typeof WS_URL !== 'undefined') {
+      uploadUrl = WS_URL.replace('wss://', 'https://').replace('ws://', 'http://') + '/upload';
+    }
+    if (window.NABS_CHAT_UPLOAD_URL) uploadUrl = window.NABS_CHAT_UPLOAD_URL;
+
+    xhr.open('POST', uploadUrl, true);
+
+    xhr.upload.onprogress = function (e) {
+      if (e.lengthComputable) {
+        statusEl.textContent = 'Uploadingâ€¦ ' + Math.round((e.loaded / e.total) * 100) + '%';
+      }
+    };
+
+    xhr.onload = function () {
+      statusEl.remove();
+      if (xhr.status === 200) {
+        var result;
+        try { result = JSON.parse(xhr.responseText); } catch (e) {
+          addMessage('Upload failed â€” please try again.', 'bot'); return;
+        }
+
+        var isImage = file.type.startsWith('image/');
+        if (isImage) {
+          addImageMessage(result.url, file.name);
+        } else {
+          addFileMessage(result.url, file.name);
+        }
+
+        // Notify the server via WebSocket
+        if (connected) {
+          ws.send(JSON.stringify({ type: 'file', url: result.url, name: file.name, mime: file.type }));
+        }
+      } else {
+        addMessage('Upload failed. You can also email us directly at support@nameabrightstar.com', 'bot');
+      }
+    };
+
+    xhr.onerror = function () {
+      statusEl.remove();
+      addMessage('Upload failed â€” check your connection and try again.', 'bot');
+    };
+
+    xhr.send(formData);
+  }
+
+  // â•â•â• Lightbox â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  function openLightbox(src) {
+    var lb = document.createElement('div');
+    lb.id = 'nabs-lightbox';
+    var img = document.createElement('img');
+    img.src = src;
+    lb.appendChild(img);
+    lb.addEventListener('click', function () { lb.remove(); });
+    document.body.appendChild(lb);
+  }
+
+  // â•â•â• Toggle â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
   function openPanel() {
     isOpen = true;
     panel.classList.add('nabs-open');
     connect();
     if (messagesEl.children.length === 0) {
       setTimeout(function () {
-        addMessage('Hi! ✨ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
+        addMessage('Hi! âœ¦ Welcome to Name a Bright Star. I can help you look up a registration, resend your certificate, or answer questions about your star. What can I help you with?', 'bot');
       }, 300);
     }
     setTimeout(function () { inputEl.focus(); }, 250);
@@ -280,6 +431,5 @@
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 
-  // Initial state: button disabled until WS connects
   sendBtn.disabled = true;
 })();
