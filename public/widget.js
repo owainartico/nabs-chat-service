@@ -147,6 +147,23 @@
       cursor: zoom-out;
     }
     #nabs-lightbox img { max-width: 92vw; max-height: 92vh; border-radius: 8px; }
+    /* Status bar */
+    #nabs-status-bar {
+      border-top: 1px solid #c8a84b11;
+      background: #050510;
+      padding: 3px 12px;
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 10px;
+      color: #c8a84b44;
+      text-align: center;
+      letter-spacing: 0.3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      transition: color 0.3s;
+      user-select: none;
+    }
+    #nabs-status-bar.nabs-status-active { color: #c8a84b99; }
   `;
 
   // â•â•â• DOM â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
@@ -184,6 +201,7 @@
       <input id="nabs-input" type="text" placeholder="Ask about your starâ€¦" autocomplete="off" maxlength="500">
       <button id="nabs-send-btn" aria-label="Send">âž¤</button>
     </div>
+    <div id="nabs-status-bar">connectingâ€¦</div>
   `;
   document.body.appendChild(panel);
 
@@ -193,6 +211,7 @@
   var closeBtn = document.getElementById('nabs-close-btn');
   var attachBtn = document.getElementById('nabs-attach-btn');
   var fileInput = document.getElementById('nabs-file-input');
+  var statusEl = document.getElementById('nabs-status-bar');
   var isOpen = false;
   var ws = null;
   var connected = false;
@@ -206,13 +225,16 @@
     ws.onopen = function () {
       connected = true;
       sendBtn.disabled = false;
+      if (statusEl) { statusEl.textContent = 'ready'; statusEl.classList.add('nabs-status-active'); }
     };
 
     ws.onmessage = function (evt) {
       removeTyping();
       try {
         var data = JSON.parse(evt.data);
-        if (data.type === 'chat' || data.type === 'message' || data.type === 'response') {
+        if (data.type === 'status') {
+          updateStatus(data);
+        } else if (data.type === 'chat' || data.type === 'message' || data.type === 'response') {
           addMessage(data.text || data.content || '', 'bot');
         } else if (data.type === 'approval_result') {
           if (data.status === 'approved') {
@@ -393,6 +415,25 @@
     };
 
     xhr.send(formData);
+  }
+
+  // â•â•â• Status bar â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+  function formatTokens(n) {
+    if (!n || n === 0) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'm';
+    if (n >= 1000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    return String(n);
+  }
+
+  function updateStatus(data) {
+    if (!statusEl) return;
+    var model = (data.model || '').replace('google/', '').replace('anthropic/', '').replace('openai/', '');
+    var used = data.tokensUsed || 0;
+    var ctx = data.contextWindow || 1048576;
+    var pct = ctx ? Math.round((used / ctx) * 100) : 0;
+    var compacts = data.compacts || 0;
+    statusEl.textContent = model + ' | ' + formatTokens(used) + '/' + formatTokens(ctx) + ' (' + pct + '%) | ' + compacts + 'x compact';
+    statusEl.classList.add('nabs-status-active');
   }
 
   // â•â•â• Lightbox â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
