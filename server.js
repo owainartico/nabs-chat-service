@@ -1,7 +1,10 @@
-﻿const express = require('express');
+const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const path = require('path');
+const crypto = require('crypto');
+const multer = require('multer');
+const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
 const { chat } = require('./lib/ai');
 const db = require('./lib/db');
 const discord = require('./lib/discord');
@@ -16,10 +19,70 @@ const wss = new WebSocket.Server({ server });
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ── Health check ─────────────────────────────────────────────────
+// â”€â”€ R2 / file upload setup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID || 'ee72db6a9045473c837785429f6678ee';
+const R2_ACCESS_KEY  = process.env.R2_ACCESS_KEY  || '142497a0601962145e5bf62a34041a1f';
+const R2_SECRET_KEY  = process.env.R2_SECRET_KEY  || '152fa0e24cb646f3390c3dd341e1e647d37f6b6b5e3edf35b26f156813fc1fa5';
+const R2_BUCKET      = process.env.R2_BUCKET      || 'artico-catalog';
+const R2_PUBLIC_URL  = process.env.R2_PUBLIC_URL  || 'https://pub-29d8c1b87a0a42be8e83792213f88022.r2.dev';
+
+const s3 = new S3Client({
+  region: 'auto',
+  endpoint: `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: { accessKeyId: R2_ACCESS_KEY, secretAccessKey: R2_SECRET_KEY },
+});
+
+const ALLOWED_MIME = new Set([
+  'image/jpeg','image/png','image/gif','image/webp','image/heic',
+  'application/pdf',
+]);
+const EXT_MAP = {
+  'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif',
+  'image/webp': 'webp', 'image/heic': 'heic', 'application/pdf': 'pdf',
+};
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10 MB
+  fileFilter: (_req, file, cb) => {
+    if (ALLOWED_MIME.has(file.mimetype)) cb(null, true);
+    else cb(new Error('File type not allowed. Please upload an image or PDF.'));
+  },
+});
+
+// â”€â”€ Health check â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
-// ── Email reply form ──────────────────────────────────────────────
+// â”€â”€ File upload endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+app.post('/upload', upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+  const ext = EXT_MAP[req.file.mimetype] || 'bin';
+  const key = `nabs-chat/${Date.now()}-${crypto.randomBytes(6).toString('hex')}.${ext}`;
+
+  try {
+    await s3.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype,
+    }));
+
+    const url = `${R2_PUBLIC_URL}/${key}`;
+    res.json({ url, name: req.file.originalname });
+  } catch (err) {
+    console.error('[UPLOAD] R2 error:', err);
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+app.use((err, _req, res, _next) => {
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'File too large (max 10MB)' });
+  if (err.message === 'File type not allowed. Please upload an image or PDF.') return res.status(415).json({ error: err.message });
+  res.status(500).json({ error: err.message });
+});
+
+// â”€â”€ Email reply form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/email-reply', (req, res) => {
   const { id, token } = req.query;
   const pending = emailMonitor.getPendingReply(id);
@@ -34,7 +97,7 @@ app.get('/email-reply', (req, res) => {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Reply — Name a Bright Star</title>
+  <title>Reply - Name a Bright Star</title>
   <style>
     body { font-family: Georgia, serif; max-width: 700px; margin: 40px auto; padding: 20px; color: #1a1a2e; }
     h1 { font-size: 1.4em; }
@@ -46,7 +109,7 @@ app.get('/email-reply', (req, res) => {
   </style>
 </head>
 <body>
-  <h1>⭐ Reply to Email</h1>
+  <h1>âœ¦ Reply to Email</h1>
   <div class="meta">
     <strong>To:</strong> ${email.fromEmail}<br>
     <strong>From:</strong> ${email.to}<br>
@@ -60,7 +123,7 @@ app.get('/email-reply', (req, res) => {
     <input type="hidden" name="token" value="${token}">
     <textarea name="body">${draft.replace(/</g, '&lt;')}</textarea>
     <br>
-    <button type="submit">Send Reply ✉️</button>
+    <button type="submit">Send Reply âœ¦</button>
   </form>
 </body>
 </html>`);
@@ -88,13 +151,13 @@ app.post('/email-reply', async (req, res) => {
     });
 
     emailMonitor.deletePendingReply(id);
-    res.send(page('Reply Sent ✅', `<p>Your reply to <strong>${email.fromEmail}</strong> has been sent.</p><p>You can close this tab.</p>`));
+    res.send(page('Reply Sent âœ¦', `<p>Your reply to <strong>${email.fromEmail}</strong> has been sent.</p><p>You can close this tab.</p>`));
   } catch (err) {
     res.status(500).send(page('Error', `<p>Failed to send: ${err.message}</p>`));
   }
 });
 
-// ── Approval handler (Owain clicks link from Discord) ─────────────
+// â”€â”€ Approval handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/approve', async (req, res) => {
   const { id, action, token } = req.query;
 
@@ -131,7 +194,7 @@ app.get('/approve', async (req, res) => {
 
   notifyCustomer(approval.session_id, action, resultMessage);
 
-  const actionLabel = action === 'approve' ? '✅ Approved' : '❌ Rejected';
+  const actionLabel = action === 'approve' ? 'âœ“ Approved' : 'âœ— Rejected';
   res.send(page(actionLabel,
     `<p><strong>${actionLabel}</strong></p>
      <p>${approval.type.replace(/_/g, ' ')} for <em>${approval.email}</em></p>
@@ -140,7 +203,7 @@ app.get('/approve', async (req, res) => {
   ));
 });
 
-// ── Resend certificate email via NABS admin API ───────────────────
+// â”€â”€ Resend certificate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 async function resendCertificate(registrationId) {
   const NABS_URL = process.env.NABS_ADMIN_URL || 'https://name-a-bright-star.onrender.com';
   const auth = Buffer.from(`${process.env.NABS_ADMIN_USERNAME || 'admin'}:${process.env.NABS_ADMIN_PASSWORD}`).toString('base64');
@@ -163,18 +226,17 @@ async function executeApproval(approval) {
       return `New code sent to ${approval.email}`;
     }
     case 'fix_spelling': {
-      if (!approval.registration_id) return 'No registration ID — manual fix required';
+      if (!approval.registration_id) return 'No registration ID - manual fix required';
       const match = approval.details.match(/to[:\s]+(.+)$/i);
       if (match) {
         const newName = match[1].trim();
         await db.updateRegistration(approval.registration_id, { registrant_name: newName });
-        // Resend full certificate email so customer gets updated details
         const resendResult = await resendCertificate(approval.registration_id)
           .catch(e => { console.error('resendCertificate failed:', e); return null; });
         console.log('[APPROVAL] Resend result:', JSON.stringify(resendResult));
         return `Registration updated and certificate email resent to ${approval.email}`;
       }
-      return 'Manual fix required — could not parse new name from details';
+      return 'Manual fix required - could not parse new name from details';
     }
     case 'reselect_star': {
       const code = await db.generateCode();
@@ -198,7 +260,7 @@ function notifyCustomer(sessionId, action, result) {
   }
 }
 
-// ── Test Discord posting (debug) ──────────────────────────────────
+// â”€â”€ Test Discord (debug) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get('/test-discord', async (req, res) => {
   try {
     await discord.sendApprovalRequest({
@@ -206,7 +268,7 @@ app.get('/test-discord', async (req, res) => {
       token: 'testtoken',
       type: 'new_code',
       email: 'test@example.com',
-      details: 'Test approval from Render debug endpoint'
+      details: 'Test approval from debug endpoint'
     });
     res.json({ ok: true, message: 'Discord message sent successfully' });
   } catch (err) {
@@ -214,17 +276,29 @@ app.get('/test-discord', async (req, res) => {
   }
 });
 
-// ── WebSocket chat ────────────────────────────────────────────────
+// â”€â”€ WebSocket chat â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 wss.on('connection', (ws) => {
-  ws.sessionId = Math.random().toString(36).slice(2);
+  ws.sessionId = crypto.randomBytes(8).toString('hex');
   ws.history = [];
   ws.pendingApprovalId = null;
 
   ws.on('message', async (data) => {
     let msg;
-    try {
-      msg = JSON.parse(data);
-    } catch {
+    try { msg = JSON.parse(data); } catch { return; }
+
+    // â”€â”€ File/image uploaded by customer â”€â”€
+    if (msg.type === 'file') {
+      const isImage = (msg.mime || '').startsWith('image/');
+      const label = isImage ? '[Customer shared an image]' : `[Customer shared a file: ${msg.name}]`;
+      ws.history.push({ role: 'user', content: `${label} URL: ${msg.url}` });
+
+      // Echo a brief acknowledgement
+      ws.send(JSON.stringify({
+        type: 'chat',
+        text: isImage
+          ? "Thanks for sharing that image! I've noted it and our team can see it."
+          : `Thanks for sharing that file (${msg.name}). Our team can see it.`,
+      }));
       return;
     }
 
@@ -232,7 +306,6 @@ wss.on('connection', (ws) => {
 
     const userMessage = { role: 'user', content: msg.text };
     ws.history.push(userMessage);
-
     if (ws.history.length > 30) ws.history = ws.history.slice(-30);
 
     try {
@@ -243,7 +316,7 @@ wss.on('connection', (ws) => {
       console.error('Chat error:', err);
       ws.send(JSON.stringify({
         type: 'chat',
-        text: "I'm sorry, I'm having trouble right now. Please try again in a moment or email us at support@nameabrightstar.com"
+        text: "I'm sorry, I'm having trouble right now. Please try again in a moment or email us at support@nameabrightstar.com",
       }));
     }
   });
@@ -252,34 +325,25 @@ wss.on('connection', (ws) => {
 async function handleTool(ws, name, args) {
   switch (name) {
     case 'lookup_registration': {
-      try {
-        return await db.lookupByEmail(args.email);
-      } catch (err) {
-        return { found: false, error: err.message };
-      }
+      try { return await db.lookupByEmail(args.email); }
+      catch (err) { return { found: false, error: err.message }; }
     }
     case 'validate_code': {
-      try {
-        return await db.validateCode(args.code);
-      } catch (err) {
-        return { valid: false, error: err.message };
-      }
+      try { return await db.validateCode(args.code); }
+      catch (err) { return { valid: false, error: err.message }; }
     }
     case 'request_approval': {
       console.log('[APPROVAL] Creating for', args.email, 'type:', args.type);
 
-      // Auto-approve new_code requests until 2026-04-15 (policy set 2026-03-15)
       const AUTO_CODE_EXPIRY = new Date('2026-04-15T00:00:00.000Z');
       if (args.type === 'new_code' && new Date() < AUTO_CODE_EXPIRY) {
         console.log('[APPROVAL] Auto-sending new code to', args.email);
         try {
           const code = await db.generateCode();
           await sendNewCode(args.email, code).catch(e => console.error('sendNewCode failed:', e));
-          console.log('[APPROVAL] Auto new_code sent:', code, 'to', args.email);
-          return { approved: true, auto: true, message: `New code sent! Tell the customer: their new code is on its way to ${args.email} — they should have it within a minute.` };
+          return { approved: true, auto: true, message: `New code sent! Tell the customer: their new code is on its way to ${args.email} - they should have it within a minute.` };
         } catch (err) {
           console.error('[APPROVAL] Auto new_code failed:', err.message);
-          // Fall through to normal approval flow on error
         }
       }
 
@@ -288,9 +352,7 @@ async function handleTool(ws, name, args) {
       ws.pendingApprovalId = approval.id;
 
       try {
-        console.log('[APPROVAL] Posting to Discord channel:', process.env.DISCORD_CHANNEL_ID);
         await discord.sendApprovalRequest(approval);
-        console.log('[APPROVAL] Discord post successful');
         return { requested: true, message: 'Approval request sent to operator' };
       } catch (err) {
         console.error('[APPROVAL] Discord failed:', err.message);
@@ -307,21 +369,21 @@ function page(title, body) {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>${title} — Name a Bright Star</title>
+  <title>${title} - Name a Bright Star</title>
   <style>
     body { font-family: Georgia, serif; max-width: 500px; margin: 80px auto; padding: 20px; text-align: center; color: #333; }
     h1 { color: #1a1a2e; }
   </style>
 </head>
 <body>
-  <h1>✦ Name a Bright Star</h1>
+  <h1>âœ¦ Name a Bright Star</h1>
   <h2>${title}</h2>
   ${body}
 </body>
 </html>`;
 }
 
-// ── Start ─────────────────────────────────────────────────────────
+// â”€â”€ Start â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`NABS Chat Service running on port ${PORT}`);
