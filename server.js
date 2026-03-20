@@ -5,7 +5,7 @@ const path = require('path');
 const crypto = require('crypto');
 const multer = require('multer');
 const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-const { chat } = require('./lib/ai');
+const { chat, MODEL } = require('./lib/ai');
 const db = require('./lib/db');
 const discord = require('./lib/discord');
 const approvals = require('./lib/approvals');
@@ -281,6 +281,8 @@ wss.on('connection', (ws) => {
   ws.sessionId = crypto.randomBytes(8).toString('hex');
   ws.history = [];
   ws.pendingApprovalId = null;
+  ws.sessionTokens = 0;
+  ws.compacts = 0;
 
   ws.on('message', async (data) => {
     let msg;
@@ -306,11 +308,24 @@ wss.on('connection', (ws) => {
 
     const userMessage = { role: 'user', content: msg.text };
     ws.history.push(userMessage);
-    if (ws.history.length > 30) ws.history = ws.history.slice(-30);
+    if (ws.history.length > 30) { ws.history = ws.history.slice(-30); ws.compacts++; }
 
     try {
       const result = await chat(ws.history, (name, args) => handleTool(ws, name, args));
       ws.history = result.messages;
+
+      // Accumulate token usage and broadcast status
+      const usage = result.usage || {};
+      ws.sessionTokens += (usage.total_tokens || usage.prompt_tokens || 0);
+      const CONTEXT_WINDOW = 1048576; // Gemini 2.5 Flash
+      ws.send(JSON.stringify({
+        type: 'status',
+        model: MODEL,
+        tokensUsed: ws.sessionTokens,
+        contextWindow: CONTEXT_WINDOW,
+        compacts: ws.compacts,
+      }));
+
       ws.send(JSON.stringify({ type: 'chat', text: result.content }));
     } catch (err) {
       console.error('Chat error:', err);
